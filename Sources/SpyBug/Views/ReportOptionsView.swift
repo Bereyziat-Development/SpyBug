@@ -42,19 +42,18 @@ struct ReportOptionsView: View {
                     .transition(.move(edge: .trailing))
                 }
             }
-            
         }
+        .cornerRadius(ScreenSizeChecker.isScreenHeightLessThan670 ? 0 : 20, corners: [.topLeft, .topRight])
     }
-    
     
     @ViewBuilder
     private func PoweredBySpybug() -> some View {
         let urlString = "https://www.spybug.io/"
         let textColor = Color(.poweredBy)
         
-        HStack{
-            VStack(alignment: .leading, spacing: 5){
-                HStack{
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
                     Text("Powered by", bundle: .module)
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(textColor)
@@ -67,7 +66,6 @@ struct ReportOptionsView: View {
                             .foregroundStyle(spyBugGradient)
                     }
                     .buttonStyle(.plain)
-                    
                 }
                 Text("All rights reserved 2024", bundle: .module)
                     .font(.system(size: 12))
@@ -88,10 +86,9 @@ struct ReportOptionsView: View {
                 showReportForm = true
                 selectedType = type
             }
+        } label: {
+            Text(type.title, bundle: .module)
         }
-    label: {
-        Text(type.title, bundle: .module)
-    }
         .buttonStyle(ReportButtonStyle(icon: type.icon))
     }
 }

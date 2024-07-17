@@ -17,6 +17,8 @@ struct ReportFormView: View {
     @State private var isLoading = false
     @State private var showSuccessErrorView: ViewState?
     @Binding var showReportForm: Bool
+    @FocusState private var isTextEditorFocused: Bool
+    
     var author: String?
     var type: ReportType
     
@@ -25,71 +27,50 @@ struct ReportFormView: View {
     }
     
     var body: some View {
-        VStack {
-            if let showSuccessErrorView = showSuccessErrorView {
-                SuccessErrorView(state: showSuccessErrorView)
-                    .onTapGesture {
-                        withAnimation {
-                            self.showSuccessErrorView = nil
-                            self.showReportForm = false
+        NavigationView {
+            VStack {
+                if let showSuccessErrorView = showSuccessErrorView {
+                    SuccessErrorView(state: showSuccessErrorView)
+                        .onTapGesture {
+                            withAnimation {
+                                self.showSuccessErrorView = nil
+                                self.showReportForm = false
+                            }
                         }
-                    }
-            } else if isLoading {
-                SendingView()
-                    .background(Color(.background))
-            } else {
-                TitleAndBackButton(showReportForm: $showReportForm, type: type)
-                ImagePicker()
-                
-                Text("Add description", bundle: .module)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(.secondary))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
-                AddDescription()
-                
-                Spacer()
-                
-                Button {
-                    if text.isEmpty {
-                        showTextError = true
-                    } else {
-                        isLoading = true
-                        buttonPressed.toggle()
-                    }
-                } label: {
-                    HStack {
-                        Spacer()
-                        Text("Send request", bundle: .module)
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.white)
-                        
+                } else if isLoading {
+                    SendingView()
+                        .background(Color(.background))
+                } else {
+                    TitleAndBackButton(showReportForm: $showReportForm, type: type)
+                    ImagePicker()
+                    
+                    Text("Add description", bundle: .module)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(.secondary))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    AddDescription()
+                    
+                    if !isTextEditorFocused {
                         Spacer()
                         
-                        Image(systemName: "paperplane")
-                            .resizable()
-                            .frame(width: 20, height: 20)
-                            .foregroundStyle(.white)
-                            .padding(.trailing)
+                        SendRequestButton()
                     }
-                    .padding(.horizontal)
-                    .frame(height: 60)
-                    .background(
-                        RoundedRectangle(cornerRadius: 35)
-                            .fill(spyBugGradient)
-                            .shadow(color: Color(.shadow), radius: 4)
-                    )
                 }
-                .buttonStyle(.plain)
             }
-        }
-        .padding(.horizontal)
-        .background(Color(.background))
-        .onChange(of: buttonPressed) { newValue in
-            if newValue && !text.isEmpty {
-                Task {
-                    await sendRequest()
+            .padding(.top, isTextEditorFocused && ScreenSizeChecker.isScreenHeightLessThan670 ? 16 : 0)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal)
+            .background(Color(.background))
+            .onChange(of: buttonPressed) { newValue in
+                if newValue && !text.isEmpty {
+                    Task {
+                        await sendRequest()
+                    }
                 }
+            }
+            .onTapGesture {
+                KeyboardUtils.hideKeyboard()
             }
         }
     }
@@ -103,10 +84,8 @@ struct ReportFormView: View {
                     guard let imageData = image.jpegData(compressionQuality: 0.8) else { fatalError("Image data compression failed") }
                     return imageData
                 }
-                
                 _ = try await SpyBugService().addPicturesToCreateBugReport(reportId: result.id, pictures: imageDataArray)
             }
-            
             withAnimation {
                 showSuccessErrorView = .success
                 isLoading = false
@@ -117,6 +96,35 @@ struct ReportFormView: View {
                 isLoading = false
             }
         }
+    }
+    
+    @ViewBuilder
+    private func SendRequestButton() -> some View {
+        Button {
+            sendRequestAction()
+        } label: {
+            HStack {
+                Spacer()
+                Text("Send request", bundle: .module)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.white)
+                Spacer()
+                
+                Image(systemName: "paperplane")
+                    .resizable()
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(.white)
+                    .padding(.trailing)
+            }
+            .padding(.horizontal)
+            .frame(height: 60)
+            .background(
+                RoundedRectangle(cornerRadius: 35)
+                    .fill(spyBugGradient)
+                    .shadow(color: Color(.shadow), radius: 4)
+            )
+        }
+        .buttonStyle(.plain)
     }
     
     @ViewBuilder
@@ -136,6 +144,7 @@ struct ReportFormView: View {
     private func TitleAndBackButton(showReportForm: Binding<Bool>, type: ReportType) -> some View {
         HStack(alignment: .center) {
             Button {
+                KeyboardUtils.hideKeyboard()
                 withAnimation {
                     showReportForm.wrappedValue = false
                 }
@@ -162,9 +171,29 @@ struct ReportFormView: View {
         .buttonStyle(.plain)
     }
     
+    func sendRequestAction() {
+        if text.isEmpty {
+            showTextError = true
+        } else {
+            isLoading = true
+            buttonPressed.toggle()
+        }
+        KeyboardUtils.hideKeyboard()
+    }
+    
     @ViewBuilder
     private func AddDescription() -> some View {
-        ZStack {
+        HStack {
+            TextEditor(text: $text)
+                .disableAutocorrection(true)
+                .keyboardType(.alphabet)
+                .focused($isTextEditorFocused)
+                .modifier(KeyboardSendRequestButton(action: {
+                    sendRequestAction()
+                }))
+            Spacer()
+        }
+        .overlay {
             if text.isEmpty {
                 VStack {
                     HStack {
@@ -176,16 +205,9 @@ struct ReportFormView: View {
                     }
                     Spacer()
                 }
-                .padding([.top, .leading], 4)
-            }
-            HStack {
-                if #available(iOS 16.0, *) {
-                    TextEditor(text: $text)
-                        .scrollContentBackground(.hidden)
-                    Spacer()
-                } else {
-                    TextEditor(text: $text)
-                    Spacer()
+                .padding([.top, .leading], 6)
+                .onTapGesture {
+                    isTextEditorFocused = true
                 }
             }
         }
@@ -200,7 +222,6 @@ struct ReportFormView: View {
         )
     }
 }
-
 
 #Preview {
     TabView {
