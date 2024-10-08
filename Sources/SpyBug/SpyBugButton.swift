@@ -37,6 +37,7 @@ public struct SpyBugButton<Label: View>: View {
         } label: {
             label()
         }
+#if os(iOS)
         .adaptiveSheet(
             isPresented: $isShowingReportOptionsView,
             sheetBackground: Color(.background)
@@ -45,8 +46,26 @@ public struct SpyBugButton<Label: View>: View {
                 author: author,
                 reportTypes: configurationManager.loadSelectedReportTypes()
             )
+            
             .frame(height: 500)
         }
+        
+#endif
+#if os(visionOS)
+        .popover(isPresented: $isShowingReportOptionsView,
+                 arrowEdge: .top,
+                 content: {
+            NavigationView{
+                ReportOptionsView(
+                    author: author,
+                    reportTypes: configurationManager.loadSelectedReportTypes()
+                )}
+            .frame(width: 400, height: 650)
+            .navigationBarBackButtonHidden(false)
+            
+            .background(Color("Background"))
+        })
+#endif
         .onAppear {
             print("report types \(reportTypes)")
         }
